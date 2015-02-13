@@ -179,7 +179,7 @@ linePlot <- function(df, f, title, xlabel, ylabel, gvis) {
     }
 }
 
-barPlot <- function(df, f, title, xlabel, ylabel, gvis, vertical=0) {
+barPlot <- function(df, f, title, xlabel, ylabel, gvis, vertical=0, gbar_width=20, filter=0) {
 
 	if (hh_debug) {
 		system('logger -p user.notice In barPlot')
@@ -187,12 +187,20 @@ barPlot <- function(df, f, title, xlabel, ylabel, gvis, vertical=0) {
 
     if(gvis == 1){
       title <- sub("\n", " ", title)
+#      write.table(df, "/tmp/barPlot_gvis.txt")
       if(vertical == 1){
           p <- gvisColumnChart(df, xvar='x', yvar='y', 
-                               options=list(legend="none", title=title, vAxis=paste("{title:'",ylabel,"'}", sep=""), hAxis=paste("{title:'",xlabel,"'}", sep=""), height=500, width=920))
+                              options=list(legend="none", title=title,
+                              vAxis=paste("{title:'",ylabel,"', textstyle:{fontSize:'10'}}", sep=""),
+                              hAxis=paste("{title:'",xlabel,"', textstyle:{fontSize:'14'}}", sep=""),
+                              height=500, width=920))
       }else{
           p <- gvisBarChart(df, xvar='x', yvar='y', 
-                            options=list(legend="none", title=title, vAxis=paste("{title:'",xlabel,"'}", sep=""), hAxis=paste("{title:'",ylabel,"'}", sep=""), height=500, width=920))
+                            options=list(legend="none", title=title,
+                            vAxis=paste("{title:'",xlabel,"',textStyle:{fontSize:'10'}}", sep=""),
+                            hAxis=paste("{title:'",ylabel,"',textStyle:{fontSize:'14'}}", sep=""),
+                            height=500, width=920,
+                            bar=paste("{groupWidth:'",gbar_width,"'}", sep="")))
       }
       cat(p$html$chart,file=f)
     }else{
@@ -218,15 +226,61 @@ barPlot <- function(df, f, title, xlabel, ylabel, gvis, vertical=0) {
     }
 }
 
+styleBarPlot <- function(df, f, title, xlabel, ylabel, gvis, vertical=0, gbar_width=20, filter=0) {
+
+	if (hh_debug) {
+		system('logger -p user.notice In styleBarPlot')
+	}
+
+    if(gvis == 1){
+      title <- sub("\n", " ", title)
+      if(vertical == 1){
+          p <- gvisColumnChart(df, xvar='x', yvar='y', 
+                              options=list(legend="none", title=title,
+                              vAxis=paste("{title:'",ylabel,"', textstyle:{fontSize:'10'}}", sep=""),
+                              hAxis=paste("{title:'",xlabel,"', textstyle:{fontSize:'14'}}", sep=""),
+                              height=500, width=920))
+      }else{
+          p <- gvisBarChart(df, xvar='x', yvar=c('y', 'y.style'), 
+                            options=list(legend="none", title=title,
+                            vAxis=paste("{title:'",xlabel,"',textStyle:{fontSize:'10'}}", sep=""),
+                            hAxis=paste("{title:'",ylabel,"',textStyle:{fontSize:'14'}}", sep=""),
+                            height=500, width=920,
+                            bar=paste("{groupWidth:'",gbar_width,"'}", sep="")))
+      }
+      cat(p$html$chart,file=f)
+    }else{
+      if (vertical == 0) {
+          df$x <- factor(df$x, levels=rev(as.character(df$x)))
+      }
+      png(f, type="cairo-png", width = W, height = H)
+
+      p <- ggplot(data=df, aes(x=x, y=y)) +
+                  geom_bar(fill=GREY, colour=GREY, stat="identity") +
+                  labs(title=title, x=xlabel, y=ylabel) +
+                  theme_bw() + scale_y_continuous(expand=c(0,0), labels = comma) +
+                  theme(panel.grid.major.y = element_line(colour = GRIDGREY), panel.grid.minor.y = element_line(colour = GRIDGREY, linetype = "dotted"), panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
+
+      if (vertical == 0) {
+        p <- p +
+             coord_flip() +
+             theme(panel.grid.major.x = element_line(colour = GRIDGREY), panel.grid.minor.x = element_line(colour = GRIDGREY, linetype = "dotted"), panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank())
+      }
+
+      print(p)
+      dev.off()
+    }
+}
 stackedBarPlot <- function(df, f, title, xlabel, ylabel, gvis, pltnm, scalex="discrete", vertical=0, gbar_width=0) {
 
 	if (hh_debug) {
 		system('logger -p user.notice In stackedBarPlot')
 	}
-	
+
     if(gvis == 1){
       title <- sub("\n", " ", title)
       de <- cast(df, x ~ key, value='y', fun.aggregate=sum)
+      
       y_var <- tail(colnames(de),-1)
       if(vertical == 1){
           if (gbar_width == 0) {
@@ -237,8 +291,9 @@ stackedBarPlot <- function(df, f, title, xlabel, ylabel, gvis, pltnm, scalex="di
                                    options=list(isStacked=TRUE, title=title, vAxis=paste("{title:'",ylabel,"'}", sep=""), hAxis=paste("{title:'",xlabel,"'}", sep=""), height=500, width=920, bar=paste("{groupWidth:",gbar_width,"}", sep="")))
           }
       }else{
+          de <- dplyr::arrange(de, x)
           p <- gvisBarChart(de, xvar='x', yvar=y_var, 
-                            options=list(isStacked=TRUE, title=title, vAxis=paste("{title:'",xlabel,"'}", sep=""), hAxis=paste("{title:'",ylabel,"'}", sep=""), height=500, width=920))
+                            options=list(isStacked=TRUE, title=title, vAxis=paste("{title:'",xlabel,"',textStyle:{fontSize:'10'}}", sep=""), hAxis=paste("{title:'",ylabel,"',textStyle:{fontSize:'14'}}", sep=""), height=500, width=920))
       }
       cat(p$html$chart,file=f)
     }else{
@@ -651,16 +706,16 @@ initPlotOptions <- function() {
 	formattraffic           <<- c("traffic_volume", "traffic_volume_difference")
     
 	formatother             <<- c("qtype_vs_tld", "client_addr_vs_rcode_accum", "qtype_vs_qnamelen", "rcode_vs_replylen", "rcode_vs_replylen_big", "client_subnet2_accum", "dns_ip_version_vs_qtype", "by_node")
-
+	formattld		<<- c("tld_volume", "all_gtld_volume", "new_gtld_volume", "cctld_volume")
 	rssac                   <<- c("traffic_volume", "traffic_sizes_small","traffic_sizes_big", "rcode_volume", "unique_sources", "traffic_volume_difference")
     
-	formatother             <<- c(formatother, rssac)
+	formatother             <<- c(formatother, rssac, formattld)
 
 	unknown_graphs          <<- c("client_subnet_count", "idn_vs_tld", "ipv6_rsn_abusers_count")
 
 	# now create other useful groups    
 	passplotname            <<- c(f1lookupcodes, f1lookupcodesnoquery)
-	avgoverwindow           <<- c(format3, 'qtype_vs_tld', 'client_addr_vs_rcode_accum', 'client_subnet2_accum', 'dns_ip_version_vs_qtype')
+	avgoverwindow           <<- c(format3, 'qtype_vs_tld', 'client_addr_vs_rcode_accum', 'client_subnet2_accum', 'dns_ip_version_vs_qtype', formattld)
 	lineplots               <<- c(format1, format2, "by_node", "rcode_volume")
 	facetedbarplots         <<- c("traffic_sizes_small","traffic_sizes_big")
 	facetedlineplots        <<- c("traffic_volume")
@@ -799,6 +854,14 @@ generatePlotFile <- function(plttitle, pltnm, ddpltid, plot_file, simple_start, 
 	}
 	else if (pltnm == 'qtype_vs_tld') { 
 		stackedBarPlot(df, plot_file, mytitle, "TLD", "Average Query Rate (q/sec)", gvis, pltnm)
+	}
+	else if (pltnm == 'tld_volume') { 
+		df$y.style <- gsub('ccTLD', paste('color:', MINICBPALETTE[2], ';', sep=" "), df$key)
+		df$y.style <- gsub('gTLD', paste('color:', MINICBPALETTE[1], ';', sep=" "), df$y.style)
+		styleBarPlot(df, plot_file, mytitle, "TLD", "Total Query Volume by Top-Level Domain", gvis, gbar_width='70%')
+	}
+	else if (pltnm %in% formattld) {
+		barPlot(df, plot_file, "TLD", "Query Volume by Top-Level Domain", gvis)
 	}
 	else if (pltnm == 'client_addr_vs_rcode_accum' || pltnm == 'client_subnet2_accum') {
 		stackedBarPlot(df, plot_file, mytitle, "Subnet (IPv4/8 or IPv6/32)", "Average Query Rate (q/sec)", gvis, pltnm)
